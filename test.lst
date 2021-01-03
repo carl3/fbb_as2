@@ -1,0 +1,103 @@
+           	; This is a test file for the four-bit-badge assembler
+           	;
+           	
+           	Zero	org	0		; We should start at 0 anyway
+           	Five	equ	5
+           	later	equ	next2+1		; can reference addr or const below
+           	
+           	; Base opcodes with 2 operands
+000 101    	start	add	R0,R1
+001 223    		ADC	r2,r3		; Case insensitive
+002 345    		sub	r4,r5
+003 467    		sbb	r6,r7
+004 589    		or	r8,r9
+005 6ab    		and	out,in
+006 7cd    		xor	jsr,pcl		; No problem with weird instructions
+007 8ef    		mov	pcm,pch
+           	; MOV variations
+008 905    	mov	mov	r0,Five		; Confusing symbol names are allowed
+009 a34    		mov	[r3:r4],r0
+00a b56    		mov	r0,[r5:r6]
+00b c01    		mov	[0:1],r0
+00c d23    		mov	r0,[2:3]
+00d e12    		mov	pc,[1:2]
+00e e64    		mov	pc,[100]
+00f e17    		mov	pc,[next]	; No automatic LOW:MED
+010 ffa    		jr	-6
+011 ff7    		jr	mov		; Address relative to .
+012 f05    		jr	next
+013 f05    		jr	prev3		; Can reference later equ if it has defined expr
+014 f12    		jr	[1:2]
+015 f23    		jr	0x23
+016 fed    		jr	start+3		; Address expressions compute relative
+           	; Extended op codes
+017 005    	next	cp	R0,5		; Isn't cp a subset of mov?
+018 01a    		add	r0,10
+019 021    		inc	r1
+01a 032    		dec	r2
+01b 043    		dsz	r3
+01c 059    		or	r0,Five+4
+01d 06c    		and	r0,0b1100
+01e 077    		xor	r0,0x7
+01f 084    		exr	Five+start-1
+020 093    		bit	r0,3
+021 0a6    		bset	r1,2
+022 0b9    		bclr	r2,Five-4
+023 0cc    		btg	r3,start	; Address is used as literal
+024 0d9    		rrc	r9
+025 0e5    		ret	r0,5
+026 0f0    		skip	c,0		; What does skip 0 mean?
+027 0f1    		skip	nc,nocarry	; Relative address symbol is allowed
+028 0f2    		skip	z,2
+029 0f3    	nocarry	skip	nz,3
+           	; Test zero fill of instructions and symbol def
+           	group3	org	0x030		; Set some fill
+           	; Extra op codes
+030 f01    		nop			; Op that does nothing
+031 f00    	stop	hcf			; Jump .
+           	; Long jump
+032 e01 9d7		goto	next
+034 e00 9c0		gosub	start
+           	;
+           	prev3	equ	next+1		; Valid for reference above if next is defined
+           	
+           	; Test error codes
+036 f00    		cp	R1,5
+**65 Error: Op CP must have operands R0,val(0-f)
+037 f00    		add	r0,foo
+**66 Error: Undefined symbol 'FOO'
+038 f00    		jr	next3		; EQU must be defined before ref
+**67 Error: Undefined symbol 'NEXT3'
+           	errdef	equ	next3+1		; reference in equ must be before def
+**68 Error: Undefined symbol 'NEXT3'
+           	next3	equ	next2+1		; Later is OK, but can be referenced in equ
+039 f00    		add	r0,22
+**70 Error: The value 22 must be 0..15
+           		org	32
+**71 Error: Origin must be >= 03a (58)
+03a f00 f00	next2	goto	start-130
+**72 Error: The value of START-130 is out of range: -130, must be 0..4095
+03c f00    		jr	start-130	; An address gets relative, even if negative
+**73 Error: The value of START-130 is an invalid address -130 (must be 0..4095)
+03d f00    		jr	Five-140	; An EQU is an offset
+**74 Error: The relative value of FIVE-140 is an invalid address -74 (must be 0..4095)
+**74 Error: The value of FIVE-140 is out of range: -135, must be -128..127
+03e f00    		jr	next2-130	; An address is converted to an offset
+**75 Error: The value of NEXT2-130 is an invalid address -72 (must be 0..4095)
+03f f00    		jr	-100		; Valid offset but invalid address
+**76 Error: The relative value of -100 is an invalid address -37 (must be 0..4095)
+040 ffb    		jr	next3		; next3 is ok here
+041 f00    		mov	pc,[HIGH next+15:MED next+15]	; HIGH/MED eval before +
+**78 Error: The value of MED NEXT+15 is out of range: 16, must be 0..15
+042 f00    		bit	pcl,3
+**79 Error: Op BIT must have operands Ry,val(0-3) y=R0..R3
+043 f00    		bit	R3,Five
+**80 Error: The value of FIVE is out of range: 5, must be 0..3
+044 f00    		mov	R4,[3:4]
+**81 Error: Op MOV must have operands one of: Rx,Ry Rx,n [Rx:Ry],R0 R0,[Rx:Ry] R0,[n:m] [n:m],R0 PC,[n:m]
+045 f00    		skip	c,Five
+**82 Error: The value of FIVE is out of range: 5, must be 0..3
+046 f00    	nocarry	skip	nz,start	; Skip address is always relative
+**83 Error: Symbol NOCARRY is already defined on line 83
+**83 Error: The value of START is out of range: -71, must be 0..3
+           	
